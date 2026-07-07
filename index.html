@@ -1,6 +1,6 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
-<head> 
+<head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Snake</title>
@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
 <style>
   :root {
-    --bg: #ffffff;
+    --bg: #0e1015;
     --panel: #161a22;
     --panel-2: #1d222c;
     --grid-a: #131720;
@@ -172,34 +172,6 @@
   .btn:active { transform: translateY(0); }
   .btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
-  .legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    margin-top: -4px;
-  }
-
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    background: var(--panel);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 999px;
-    padding: 6px 12px;
-    font-size: 12.5px;
-    color: var(--text);
-  }
-  .chip i {
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    display: inline-block;
-    box-shadow: 0 0 8px currentColor;
-  }
-  .chip b { color: var(--muted); font-weight: 600; }
-  .chip.muted-chip { color: var(--muted); border-style: dashed; }
-
   .controls {
     display: flex;
     align-items: center;
@@ -284,13 +256,6 @@
       </div>
     </div>
 
-    <div class="legend">
-      <span class="chip"><i style="background:#f472b6"></i>Apple <b>+1</b></span>
-      <span class="chip"><i style="background:#fbbf24"></i>Star <b>+3</b></span>
-      <span class="chip"><i style="background:#60a5fa"></i>Diamond <b>+5</b></span>
-      <span class="chip muted-chip">bonuses are timed — grab them fast</span>
-    </div>
-
     <div class="controls">
       <div class="keys">
         <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>
@@ -322,15 +287,8 @@
   const GRID = 21;                 // cells per side
   const CELL = canvas.width / GRID;
 
-  // Food types. Regular spawns always; bonuses appear occasionally and expire.
-  const FOODS = {
-    apple:   { color: '#f472b6', glow: '#f472b6', points: 1,  emoji: '🍎' },
-    gold:    { color: '#fbbf24', glow: '#fbbf24', points: 3,  emoji: '⭐', life: 70 },
-    diamond: { color: '#60a5fa', glow: '#60a5fa', points: 5,  emoji: '💎', life: 50 },
-  };
-
   // Game state — kept in memory only (no persistence in sandbox).
-  let snake, dir, nextDir, food, bonus, score, best = 0;
+  let snake, dir, nextDir, food, score, best = 0;
   let tickMs = 110;
   let lastTick = 0;
   let running = false, paused = false, gameOver = false;
@@ -349,34 +307,16 @@
     score = 0;
     gameOver = false;
     paused = false;
-    bonus = null;
     placeFood();
     updateScore();
   }
 
-  function freeCell() {
+  function placeFood() {
     let p;
     do {
       p = { x: rand(GRID), y: rand(GRID) };
-    } while (
-      snake.some(s => s.x === p.x && s.y === p.y) ||
-      (food && food.x === p.x && food.y === p.y) ||
-      (bonus && bonus.x === p.x && bonus.y === p.y)
-    );
-    return p;
-  }
-
-  function placeFood() {
-    food = { ...freeCell(), type: 'apple' };
-  }
-
-  // Occasionally drop a timed bonus when the player eats regular food.
-  function maybeSpawnBonus() {
-    if (bonus) return;
-    if (Math.random() < 0.28) {
-      const type = Math.random() < 0.7 ? 'gold' : 'diamond';
-      bonus = { ...freeCell(), type, ticks: FOODS[type].life };
-    }
+    } while (snake.some(s => s.x === p.x && s.y === p.y));
+    food = p;
   }
 
   function rand(n) { return Math.floor(Math.random() * n); }
@@ -431,28 +371,14 @@
 
     snake.unshift(head);
 
-    // Age out the bonus food over time.
-    if (bonus) {
-      bonus.ticks--;
-      if (bonus.ticks <= 0) bonus = null;
-    }
-
-    let ate = false;
     if (head.x === food.x && head.y === food.y) {
-      score += FOODS.apple.points;
+      score++;
       popAnim = 1;
-      ate = true;
+      updateScore();
       placeFood();
-      maybeSpawnBonus();
-    } else if (bonus && head.x === bonus.x && head.y === bonus.y) {
-      score += FOODS[bonus.type].points;
-      popAnim = 1;
-      ate = true;
-      bonus = null;            // bonus eaten; snake grows but no new apple needed
+    } else {
+      snake.pop();
     }
-
-    if (ate) updateScore();
-    else snake.pop();
   }
 
   function loop(now) {
@@ -476,26 +402,13 @@
       }
     }
 
-    // Regular food with a gentle pulse.
-    drawFood(food.x, food.y, FOODS.apple);
-
-    // Timed bonus food, if present.
-    if (bonus) {
-      const def = FOODS[bonus.type];
-      drawFood(bonus.x, bonus.y, def);
-      // Countdown ring that empties as time runs out; blinks near expiry.
-      const frac = bonus.ticks / def.life;
-      const blink = bonus.ticks > 12 || Math.floor(performance.now() / 150) % 2 === 0;
-      if (blink) {
-        const cx = bonus.x * CELL + CELL / 2;
-        const cy = bonus.y * CELL + CELL / 2;
-        ctx.strokeStyle = def.color;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(cx, cy, CELL * 0.46, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
-        ctx.stroke();
-      }
-    }
+    // Food with gentle pulse.
+    const pulse = 1 + Math.sin(performance.now() / 240) * 0.06 + popAnim * 0.4;
+    drawCell(food.x, food.y, '#f472b6', 0.62 * pulse, true);
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    drawCell(food.x, food.y, '#f472b6', 0.9 * pulse, true);
+    ctx.restore();
 
     // Snake — head brightest, body fading toward the tail.
     for (let i = snake.length - 1; i >= 0; i--) {
@@ -505,17 +418,6 @@
       drawCell(seg.x, seg.y, color, 0.86);
       if (i === 0) drawEyes(seg);
     }
-  }
-
-  function drawFood(gx, gy, def) {
-    const pulse = 1 + Math.sin(performance.now() / 240) * 0.06 + popAnim * 0.35;
-    // Soft glow halo.
-    ctx.save();
-    ctx.globalAlpha = 0.22;
-    drawCell(gx, gy, def.glow, 0.95 * pulse, true);
-    ctx.restore();
-    // Core pellet.
-    drawCell(gx, gy, def.color, 0.62 * pulse, true);
   }
 
   function drawCell(gx, gy, color, scale, round) {
